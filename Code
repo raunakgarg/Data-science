@@ -1,0 +1,1098 @@
+wget https://e-commerce-events-ml.s3.amazonaws.com/2019-Oct.csv
+wget https://e-commerce-events-ml.s3.amazonaws.com/2019-Nov.csv
+
+Connecting to the RDS instance: 
+
+mysql -h database-1.cbd574qfiu7z.us-east-1.rds.amazonaws.com -P 3306 -u admin -p
+
+
+You will use an EMR cluster to connect to the RDS instance and create tables. 
+
+Table creation
+
+create database assignment;
+show databases;
+use assignment;
+
+Creating tables on the RDS instance
+
+
+create table oct_2019  ( event_time DATETIME, event_type varchar(255), product_id varchar(255), category_id varchar(255), category_code varchar(255), brand varchar(255), price float, user_id bigint, user_session varchar(255) );
+
+create table nov_2019 ( event_time DATETIME, event_type varchar(255), product_id varchar(255), category_id varchar(255), category_code varchar(255), brand varchar(255), price float, user_id bigint, user_session varchar(255) );
+
+
+Moving the data from the hadoop user to sql rds
+
+load data local infile '/home/hadoop/2019-Oct.csv' into table oct_2019  fields terminated by ',' lines terminated  by '\n' ignore 1 rows;
+load data local infile '/home/hadoop/2019-Nov.csv' into table nov_2019 fields terminated by ',' lines terminated  by '\n' ignore 1 rows;
+
+
+sqoop import --connect jdbc:mysql://database-1.cbd574qfiu7z.us-east-1.rds.amazonaws.com:3306/assignment --table oct_2019 --target-dir /user/hadoop/assignment/oct_2019/ --username admin -P -m 1
+
+sqoop import --connect jdbc:mysql://database-1.cbd574qfiu7z.us-east-1.rds.amazonaws.com:3306/assignment --table nov_2019 --target-dir /user/hadoop/assignment/nov_2019/ --username admin -P -m 1
+
+
+
+
+
+
+create table nov_2019_parq_partition_2
+(
+product_id string,
+brand string,  
+category_id string,
+price float,
+user_id bigint,
+user_session string
+)
+partitioned by(event_type string)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n' ;
+
+
+
+insert into table nov_2019_parq_partition_2
+partition(event_type)
+select product_id,category_id,brand, price,event_type, user_id, user_session from nov_2019_stg ;
+
+
+
+
+
+
+
+
+beeline -u jdbc:hive2://localhost:10000/default -n hadoop
+
+
+create table oct_2019_stg
+(
+event_time timestamp,
+event_type string,
+product_id string,
+category_id string,
+category_code string,
+brand string,
+price float,
+user_id bigint,
+user_session string
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n' ;
+
+
+
+create table nov_2019_stg
+(
+event_time timestamp,
+event_type string,
+product_id string,
+category_id string,
+category_code string,
+brand string,
+price float,
+user_id bigint,
+user_session string
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n' ;
+
+
+
+load  data inpath '/user/hadoop/assignment/oct_2019' into table oct_2019_stg;
+load  data inpath '/user/hadoop/assignment/nov_2019' into table nov_2019_stg;
+
+
+
++--------------------------+--------------------------+--------------------------+---------------------------+-----------------------------+---------------------+---------------------+-----------------------+---------------------------------------+
+| oct_2019_stg.event_time  | oct_2019_stg.event_type  | oct_2019_stg.product_id  | oct_2019_stg.category_id  | oct_2019_stg.category_code  | oct_2019_stg.brand  | oct_2019_stg.price  | oct_2019_stg.user_id  |       oct_2019_stg.user_session       |
++--------------------------+--------------------------+--------------------------+---------------------------+-----------------------------+---------------------+---------------------+-----------------------+---------------------------------------+
+| 2019-10-01 00:00:00.0    | cart                     | 5773203                  | 1487580005134238553       |                             | runail              | 2.62                | 463240011             | 26dd6e6e-4dac-4778-8d2c-92e149dab885  |
+| 2019-10-01 00:00:03.0    | cart                     | 5773353                  | 1487580005134238553       |                             | runail              | 2.62                | 463240011             | 26dd6e6e-4dac-4778-8d2c-92e149dab885  |
+| 2019-10-01 00:00:07.0    | cart                     | 5881589                  | 2151191071051219817       |                             | lovely              | 13.48               | 429681830             | 49e8d843-adf3-428b-a2c3-fe8bc6a307c9  |
+| 2019-10-01 00:00:07.0    | cart                     | 5723490                  | 1487580005134238553       |                             | runail              | 2.62                | 463240011             | 26dd6e6e-4dac-4778-8d2c-92e149dab885  |
+| 2019-10-01 00:00:15.0    | cart                     | 5881449                  | 1487580013522845895       |                             | lovely              | 0.56                | 429681830             | 49e8d843-adf3-428b-a2c3-fe8bc6a307c9  |
++--------------------------+--------------------------+--------------------------+---------------------------+-----------------------------+---------------------+---------------------+-----------------------+---------------------------------------+
+
+
++--------------------------+--------------------------+--------------------------+---------------------------+-----------------------------+---------------------+---------------------+-----------------------+---------------------------------------+
+| nov_2019_stg.event_time  | nov_2019_stg.event_type  | nov_2019_stg.product_id  | nov_2019_stg.category_id  | nov_2019_stg.category_code  | nov_2019_stg.brand  | nov_2019_stg.price  | nov_2019_stg.user_id  |       nov_2019_stg.user_session       |
++--------------------------+--------------------------+--------------------------+---------------------------+-----------------------------+---------------------+---------------------+-----------------------+---------------------------------------+
+| 2019-11-01 00:00:02.0    | view                     | 5802432                  | 1487580009286598681       |                             |                     | 0.32                | 562076640             | 09fafd6c-6c99-46b1-834f-33527f4de241  |
+| 2019-11-01 00:00:09.0    | cart                     | 5844397                  | 1487580006317032337       |                             |                     | 2.38                | 553329724             | 2067216c-31b5-455d-a1cc-af0575a34ffb  |
+| 2019-11-01 00:00:10.0    | view                     | 5837166                  | 1783999064103190764       |                             | pnb                 | 22.22               | 556138645             | 57ed222e-a54a-4907-9944-5a875c2d7f4f  |
+| 2019-11-01 00:00:11.0    | cart                     | 5876812                  | 1487580010100293687       |                             | jessnail            | 3.16                | 564506666             | 186c1951-8052-4b37-adce-dd9644b1d5f7  |
+| 2019-11-01 00:00:24.0    | remove_from_cart         | 5826182                  | 1487580007483048900       |                             |                     | 3.33                | 553329724             | 2067216c-31b5-455d-a1cc-af0575a34ffb  |
++--------------------------+--------------------------+--------------------------+---------------------------+-----------------------------+---------------------+---------------------+-----------------------+---------------------------------------+
+
+
+
+
+
+1. Find the total revenue generated due to purchases made in October.
+
+select sum(price) from oct_2019_stg;
+
+a. without any partition
+
+INFO  : Map 1: 5/5      Reducer 2: 1/1
+INFO  : Completed executing command(queryId=hive_20200330161901_9aee5a8b-f7e6-4bd8-94ac-d8834af30f48); Time taken: 34.103 seconds
+INFO  : OK
++----------------------+
+|         _c0          |
++----------------------+
+| 3.501265833142197E7  |
++----------------------+
+
+
+2. Write a query to yield the total sum of purchases per month in a single output. 
+
+select 'Oct'as Month ,sum(price) as month_sum from oct_2019_stg
+union
+select 'Nov'as Month ,sum(price) as month_sum from nov_2019_stg;
+
+INFO  : Completed executing command(queryId=hive_20200330165929_5610c21c-9858-438b-8fe7-ac6a948ef230); Time taken: 37.724 seconds
+INFO  : OK
++------------+----------------------+
+| _u1.month  |    _u1.month_sum     |
++------------+----------------------+
+| Nov        | 3.764624792791806E7  |
+| Oct        | 3.501265833142197E7  |
++------------+----------------------+
+
+
+
+3. Write a query to find the change in revenue generated due to purchases from October to November.
+
+
+WITH customer_brands AS(
+select 'Oct' as Month ,sum(price) as month_sum from oct_2019_stg
+union
+select 'Nov' as Month ,sum(price) as month_sum from nov_2019_stg)
+select month_sum from customer_brands where Month = 'Oct' MINUS select month_sum from customer_brands where Month = 'Nov' ;
+
+
+
+stored procedure 
+
+
+WITH customer_brands AS(
+select sum(price)  as rau1 from oct_2019_parq
+union
+select sum(price)  as rau2 from nov_2019_parq)
+select rau1 - rau2  from customer_brands;
+
+
+SELECT SUM(nov_2019_parq.price) - (oct_2019_parq.price)  
+FROM oct_2019_parq  
+FULL JOIN nov_2019_parq  
+ON oct_2019_parq.user_id = nov_2019_parq.user_id ;  
+
+or 
+
+
+SELECT SUM(price) - data2 
+FROM nov_2019_parq  
+where data2 = (SELECT SUM(price)
+from oct_2019_parq.user_id ) ;  
+
+
+
+
+4. Find distinct categories of products. 
+
+WITH customer_brands AS(
+select distinct(category_id) as cat from oct_2019_stg
+union
+select distinct(category_id) as cat from nov_2019_stg)
+select distinct(cat) from customer_brands ;
+
+
+500 rows selected (30.182 seconds)
+
+
+5. Find the total number of products available under each category. 
+
+
+WITH customer_brands AS(
+select product_id , category_id  from oct_2019_stg
+union
+select product_id , category_id  from nov_2019_stg)
+select count(distinct(product_id)) as Product_count , category_id from customer_brands group by category_id ;
+
+500 rows selected (43.671 seconds)
+
+
+6. Which brand had the maximum sales in October and November combined?
+
+WITH customer_brands AS(
+select user_id , brand  from oct_2019_stg
+union
+select user_id , brand  from nov_2019_stg)
+select count(user_id) as Product_count , brand from customer_brands group by brand order by Product_count desc limit 2;
+
+
++----------------+---------+
+| product_count  |  brand  |
++----------------+---------+
+| 372769         |         |
+| 100438         | runail  |
++----------------+---------+
+2 rows selected (56.822 seconds)
+
+
+7. Which brands increased their sales from October to November?
+
+SELECT brand, sum(nov_2019_parq.price) as nov_sum , sum(oct_2019_parq.price) as oct_sum 
+FROM oct_2019_parq  
+FULL JOIN nov_2019_parq  
+ON oct_2019_parq.brand = nov_2019_parq.brand
+group by brand;  
+
+
+or 
+
+
+SELECT brand as this_brand, sum(price) as sum_price
+FROM nov_2019_parq  
+group by brand
+where sum_price > (select sum(price) from oct_2019_parq where brand = this_brand);  
+
+
+8. Your company wants to reward the top 10 users of its website with a Golden Customer plan. Write a query to generate a list of top 10 users who spend the most.
+
+
+user_session
+
+
+WITH customer_brands AS(
+select user_id , user_session  from oct_2019_stg
+union
+select user_id , user_session  from nov_2019_stg)
+select count(user_session) as user_activity , user_id from customer_brands group by user_id order by user_activity desc limit 10;
+
+
+INFO  : Completed executing command(queryId=hive_20200330202951_524c37d7-fb6b-4c0b-8b1f-97f60b5b1257); Time taken: 48.209 seconds
+INFO  : OK
++----------------+------------+
+| user_activity  |  user_id   |
++----------------+------------+
+| 7901           | 527021202  |
+| 3377           | 557616099  |
+| 2110           | 557956487  |
+| 1502           | 541975884  |
+| 1465           | 223293700  |
+| 1337           | 553753653  |
+| 1291           | 556730134  |
+| 1286           | 500927959  |
+| 1264           | 574406416  |
+| 1029           | 563786540  |
++----------------+------------+
+10 rows selected (48.499 seconds)
+
+
+create table oct_2019_avro
+(
+event_time timestamp,
+event_type string,
+product_id string,
+category_id string,
+category_code string,
+brand string,
+price float,
+user_id bigint,
+user_session string
+)
+stored as avro;
+
+-----------------------------------------------------------------------   Avro  starts    ---------------------------------------------------------------
+
+LOAD DATA INPATH '/user/hadoop/assignment_avro/oct_2019' OVERWRITE INTO TABLE events_avro PARTITION (month='Oct');
+LOAD DATA INPATH '/user/hadoop/assignment_avro/nov_2019' OVERWRITE INTO TABLE events_avro PARTITION (month='Nov');
+
+
+CREATE TABLE IF NOT EXISTS assignment.events_avro_orc
+(event_time STRING, product_id STRING, category_id STRING, category_code STRING, brand 
+STRING, price FLOAT, user_id BIGINT, user_session STRING)
+COMMENT 'Optimized final table'
+PARTITIONED BY(month STRING, event_type STRING)
+STORED AS orc
+TBLPROPERTIES ('creator'='Raunak garg', 'date'='2020-04-06', 'orc.compress'= 'SNAPPY');
+INSERT INTO events_avro_orc PARTITION (month, event_type) select event_time, product_id, category_id, 
+category_code, brand, price, user_id, user_session, month, event_type from events_stg;
+
+
+CREATE TABLE IF NOT EXISTS assignment.events_parq
+(event_time STRING, product_id STRING, category_id STRING, category_code STRING, brand 
+STRING, price FLOAT, user_id BIGINT, user_session STRING)
+COMMENT 'Optimized final table'
+PARTITIONED BY(month STRING, event_type STRING)
+STORED AS parquet;
+
+
+INSERT INTO events_parq PARTITION (month, event_type) select event_time, product_id, category_id, 
+category_code, brand, price, user_id, user_session, month, event_type from events_stg;
+
+
+
+
+
+
+CREATE TABLE IF NOT EXISTS assignment.events_avro1
+(event_time STRING, event_type STRING, product_id STRING, category_id STRING, category_code STRING, brand 
+STRING, price FLOAT, user_id BIGINT, user_session STRING)
+COMMENT 'Staging Table to load events data'
+PARTITIONED BY(month STRING)
+stored as avro
+TBLPROPERTIES ('creator'='Raunak garg', 'date'='2020-04-06', 'skip.header.line.count'='1');
+
+
+INSERT INTO events_avro1 PARTITION (month, event_type) select event_time, product_id, category_id, 
+category_code, brand, price, user_id, user_session, month, event_type from events_stg;
+
+
+
+
+
+sqoop import -Dmapreduce.job.user.classpath.first=true -Dhadoop.security.credential.provider.path=jceks://x.jceks  --connect jdbc:mysql://database-1.cbd574qfiu7z.us-east-1.rds.amazonaws.com:3306/assignment --table oct_2019 --target-dir /user/hadoop/assignment_avro/oct_2019/ --username admin -P -m 1  --as-avrodatafile
+
+sqoop import -Dmapreduce.job.user.classpath.first=true -Dhadoop.security.credential.provider.path=jceks://x.jceks  --connect jdbc:mysql://database-1.cbd574qfiu7z.us-east-1.rds.amazonaws.com:3306/assignment --table nov_2019 --target-dir /user/hadoop/assignment_avro/nov_2019/ --username admin -P -m 1   --as-avrodatafile
+
+
+beeline -u jdbc:hive2://localhost:10000/default -n hadoop
+
+create table oct_2019_avro
+(
+event_time timestamp,
+event_type string,
+product_id string,
+category_id string,
+category_code string,
+brand string,
+price float,
+user_id bigint,
+user_session string
+)
+stored as avro;
+
+
+
+create table nov_2019_avro
+(
+event_time timestamp,
+event_type string,
+product_id string,
+category_id string,
+category_code string,
+brand string,
+price float,
+user_id bigint,
+user_session string
+)
+stored as avro;
+
+
+load  data inpath '/user/hadoop/assignment_avro/oct_2019' into table oct_2019_avro;
+load  data inpath '/user/hadoop/assignment_avro/nov_2019' into table nov_2019_avro;
+
+
+
+1. Find the total revenue generated due to purchases made in October.
+
+select sum(price) from oct_2019_avro;
+
+
++----------------------+
+|         _c0          |
++----------------------+
+| 3.501265833142197E7  |
++----------------------+
+1 row selected (69.562 seconds)
+
+
+2. Write a query to yield the total sum of purchases per month in a single output. 
+
+select 'Oct'as Month ,sum(price) as month_sum from oct_2019_avro
+union
+select 'Nov'as Month ,sum(price) as month_sum from nov_2019_avro;
+
+
+INFO  : OK
++------------+----------------------+
+| _u1.month  |    _u1.month_sum     |
++------------+----------------------+
+| Nov        | 3.764624792791806E7  |
+| Oct        | 3.501265833142197E7  |
++------------+----------------------+
+2 rows selected (115.531 seconds)
+
+
+----------------------------------------------------------perquet starts -------------------------------------------------------------------
+
+as parq
+
+
+create table oct_2019_parq
+stored as parquet
+as
+select product_id,event_type,category_id, brand, price, user_id, user_session from oct_2019_avro ;
+
+create table nov_2019_parq
+stored as parquet
+as
+select product_id,category_id, event_type,brand, price, user_id, user_session from nov_2019_avro ;
+
+
+
+
+set hive.exec.dynamic.partition=true;
+set hive.exec.dynamic.partition.mode=nonstrict;
+
+
+create table nov_2019_parq_partition_1
+(
+product_id string,
+brand string,  
+category_id string,
+price float,
+user_id bigint,
+user_session string
+)
+partitioned by(event_type string)
+stored as avro;
+
+
+insert into table nov_2019_parq_partition_1
+partition(event_type)
+select product_id,category_id,brand, price,event_type, user_id, user_session from nov_2019_parq ;
+
+
+user/hive/warehouse/dyn_part_user_info
+
+
+
+
+create table nov_2019_parq_partition_bucket
+(
+product_id string,
+category_id string,
+price float,
+user_id bigint,
+user_session string
+)
+partition by( brand string) clustered by (user_id) into 7 buckets
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n' ;
+
+
+insert into table nov_2019_parq_partition 
+partition(brand)
+select product_id,category_id,brand, price, user_id, user_session from nov_2019_parq ;
+
+
+
+
+
+1. Find the total revenue generated due to purchases made in October.
+
+select sum(price) from oct_2019_parq where event_type='purchase';
+
+events
+
+select sum(price) from oct_2019_parq where event_type='purchase';
+
+INFO  : Completed executing command(queryId=hive_20200404190422_ad827dab-17e7-476c-9bb5-a3e46a35aa25); Time taken: 19.632 seconds
+INFO  : OK
++---------------------+
+|         _c0         |
++---------------------+
+| 1211538.4295325726  |
++---------------------+
+1 row selected (19.861 seconds)
+
+
+2. Write a query to yield the total sum of purchases per month in a single output. 
+
+
+select 'Oct'as Month ,sum(price) as month_sum from oct_2019_parq where event_type='purchase'
+union
+select 'Nov'as Month ,sum(price) as month_sum from nov_2019_parq where event_type='purchase';
+
+
+INFO  : Map 1: 5/5      Map 5: 5/5      Reducer 2: 1/1  Reducer 4: 1/1  Reducer 6: 1/1
+INFO  : Completed executing command(queryId=hive_20200404190546_b139b5e7-f723-4293-8599-66a6b10f6a64); Time taken: 23.172 seconds
+INFO  : OK
++------------+---------------------+
+| _u1.month  |    _u1.month_sum    |
++------------+---------------------+
+| Nov        | 1531016.8991247676  |
+| Oct        | 1211538.4295325726  |
++------------+---------------------+
+2 rows selected (23.388 seconds)
+
+
+3. Write a query to find the change in revenue generated due to purchases from October to November.
+
+
+WITH customer_brands AS(
+select 'Oct' as Month ,sum(price) as month_sum from oct_2019_parq where event_type='purchase'
+union
+select 'Nov' as Month ,sum(price) as month_sum from nov_2019_parq where event_type='purchase')
+SELECT Month, month_sum - LAG(month_sum, 1)  OVER (ORDER BY month_sum )  as diff
+FROM customer_brands;
+
+
+
+INFO  : Completed executing command(queryId=hive_20200404190813_af6de5f7-6aab-4489-9006-2dd4cbe5463a); Time taken: 23.887 seconds
+INFO  : OK
++--------+-------------------+
+| month  |       diff        |
++--------+-------------------+
+| Oct    | NULL              |
+| Nov    | 319478.469592195  |
++--------+-------------------+
+2 rows selected (24.065 seconds)
+
+
+
+4. Find distinct categories of products. 
+
+WITH customer_brands AS(
+select distinct(category_id) as cat from oct_2019_parq
+union
+select distinct(category_id) as cat from nov_2019_parq)
+select distinct(cat) from customer_brands ;
+
+
+| 2193074740493550411  |
+| 2193074740552270669  |
+| 2193074740619379535  |
+| 2193074740686488401  |
+| 2195085255034011676  |
+| 2195085255117897760  |
+| 2195085255176618020  |
+| 2195085258272014535  |
+| 2195085258339123402  |
++----------------------+
+500 rows selected (22.899 seconds)
+
+
+5. Find the total number of products available under each category. 
+
+
+WITH customer_brands AS(
+select product_id , category_id  from oct_2019_parq
+union
+select product_id , category_id  from nov_2019_parq)
+select count(distinct(product_id)) as Product_count , category_id from customer_brands group by category_id ;
+
+
+| 2              | 2187686850687140020  |
+| 15             | 2187790129827939246  |
+| 4              | 2193074740493550411  |
+| 23             | 2193074740552270669  |
+| 6              | 2193074740619379535  |
+| 4              | 2193074740686488401  |
+| 66             | 2195085255034011676  |
+| 13             | 2195085255117897760  |
+| 56             | 2195085255176618020  |
+| 6              | 2195085258272014535  |
+| 1              | 2195085258339123402  |
++----------------+----------------------+
+500 rows selected (27.372 seconds)
+
+
+
+6. Which brand had the maximum sales in October and November combined?
+
+WITH customer_brands AS(
+select price , brand  from oct_2019_parq where event_type='purchase'
+union
+select price, brand  from nov_2019_parq where event_type='purchase')
+select sum(price) as sales_sum , brand from customer_brands WHERE brand <> ''   group by brand order by sales_sum  desc limit 1;
+
+
+
+INFO  : Map 1: 5/5      Map 5: 5/5      Reducer 3: 1/1  Reducer 4: 1/1
+INFO  : Completed executing command(queryId=hive_20200401101159_2a89a66f-0bcd-4e45-8ee5-96bcc7c769e6); Time taken: 27.727 seconds
+INFO  : OK
++--------------------+---------+
+|     sales_sum      |  brand  |
++--------------------+---------+
+| 6351.000008251518  | runail  |
++--------------------+---------+
+1 row selected (27.919 seconds)
+
+
+7. Which brands increased their sales from October to November?
+
+
+WITH customer_brands AS(
+select sum(price) , brand  from oct_2019_parq where event_type='purchase' group by brand
+union
+select sum(price) , brand  from nov_2019_parq where event_type='purchase' group by brand)
+
+
+select oct_2019_parq.brand,nov_2019_parq.brand from nov_2019_parq 
+
+
+ALTER TABLE oct_2019_parq ADD COLUMNS (month_col STRING);
+INSERT INTO oct_2019_parq(month_col) VALUES('oct');
+
+
+ALTER TABLE nov_2019_parq ADD COLUMNS (month_col STRING);
+INSERT INTO nov_2019_parq(month_col) VALUES('nov');
+
+
+
+create view events_stg
+as(
+select *  from oct_2019_parq where event_type='purchase' 
+union
+select * from nov_2019_parq where event_type='purchase' );
+
+
+
+with cte as (select brand, month, sum(price) as sales from events_stg where event_type='purchase' group by brand, month order by brand,month) select a.*,b.* from  cte a inner join cte b on a.brand=b.brand and a.month!=b.month where a.sales>b.sales limit 5;
+
+
+
+
+8. Your company wants to reward the top 10 users of its website with a Golden Customer plan. Write a query to generate a list of top 10 users who spend the most.
+
+
+WITH customer_brands AS(
+select user_id , price  from oct_2019_parq where event_type='purchase'
+union
+select user_id , price  from nov_2019_parq where event_type='purchase')
+select count(price) as user_spend , user_id from customer_brands group by user_id order by user_spend desc limit 10;
+
+
+
+
+INFO  : Map 1: 5/5      Map 5: 5/5      Reducer 3: 0(+1)/1      Reducer 4: 0/1
+INFO  : Map 1: 5/5      Map 5: 5/5      Reducer 3: 0(+1)/1      Reducer 4: 0/1
+INFO  : Map 1: 5/5      Map 5: 5/5      Reducer 3: 1/1  Reducer 4: 0(+1)/1
+INFO  : Map 1: 5/5      Map 5: 5/5      Reducer 3: 1/1  Reducer 4: 1/1
+INFO  : Completed executing command(queryId=hive_20200401101850_bd1c6f0f-af60-4ffd-9e3b-de64a900feca); Time taken: 50.768 seconds
+INFO  : OK
++-------------+------------+
+| user_spend  |  user_id   |
++-------------+------------+
+| 691         | 557616099  |
+| 616         | 557956487  |
+| 448         | 531900924  |
+| 412         | 550353491  |
+| 385         | 443045778  |
+| 380         | 479928991  |
+| 368         | 541975884  |
+| 347         | 553753653  |
+| 344         | 352394658  |
+| 344         | 548400513  |
++-------------+------------+
+10 rows selected (51.009 seconds)
+
+-------------------------------------------------------------Avro with 4 mapper --------------------------------------------------
+
+sqoop import -Dmapreduce.job.user.classpath.first=true -Dhadoop.security.credential.provider.path=jceks://x.jceks  --connect jdbc:mysql://database-1.cbd574qfiu7z.us-east-1.rds.amazonaws.com:3306/assignment --table nov_2019 --target-dir /user/hadoop/assignment_avro_split/nov_2019/ --username admin -P -m 4 --split-by user_id 
+
+sqoop import -Dmapreduce.job.user.classpath.first=true -Dhadoop.security.credential.provider.path=jceks://x.jceks  --connect jdbc:mysql://database-1.cbd574qfiu7z.us-east-1.rds.amazonaws.com:3306/assignment --table oct_2019 --target-dir /user/hadoop/assignment_avro_split/oct_2019/ --username admin -P -m 4 --split-by user_id 
+
+
+sqoop import  --connect jdbc:mysql://database-1.cbd574qfiu7z.us-east-1.rds.amazonaws.com:3306/assignment --table nov_2019 --target-dir /user/hadoop/assignment_simple/nov_2019/ --username admin -P -m 1 
+
+sqoop import  --connect jdbc:mysql://database-1.cbd574qfiu7z.us-east-1.rds.amazonaws.com:3306/assignment --table oct_2019 --target-dir /user/hadoop/assignment_simple/oct_2019/ --username admin -P -m 1 
+
+
+
+create table nov_2019_simple
+(
+event_time timestamp,
+event_type string,
+product_id string,
+category_id string,
+category_code string,
+brand string,
+price float,
+user_id bigint,
+user_session string
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n' ;
+
+load  data inpath '/user/hadoop/assignment_simple/oct_2019/' into table oct_2019_simple;
+
+select sum(price) from nov_2019_simple;
+
+INFO  : Completed executing command(queryId=hive_20200401125910_9b8a14ec-23ab-45ab-872d-f004497d4862); Time taken: 31.75 seconds
+INFO  : OK
++----------------------+
+|         _c0          |
++----------------------+
+| 3.764624792791806E7  |
++----------------------+
+1 row selected (32.008 seconds)
+
+
+
+beeline -u jdbc:hive2://localhost:10000/default -n hadoop
+
+create table oct_2019_avro_m4
+(
+event_time timestamp,
+event_type string,
+product_id string,
+category_id string,
+category_code string,
+brand string,
+price float,
+user_id bigint,
+user_session string
+)
+stored as avro;
+
+
+
+create table nov_2019_avro_m4
+(
+event_time timestamp,
+event_type string,
+product_id string,
+category_id string,
+category_code string,
+brand string,
+price float,
+user_id bigint,
+user_session string
+)
+stored as avro;
+
+
+load  data inpath '/user/hadoop/assignment_avro_split/oct_2019' into table oct_2019_avro_m4;
+load  data inpath '/user/hadoop/assignment_avro_split/nov_2019' into table nov_2019_avro_m4;
+
+
+
+1. Find the total revenue generated due to purchases made in October.
+
+select sum(price) from oct_2019_avro_m4;
+
+
++----------------------+
+|         _c0          |
++----------------------+
+| 3.501265833142197E7  |
++----------------------+
+1 row selected (69.562 seconds)
+
+
+
+create table oct_2019_parq_m4
+stored as parquet
+as
+select product_id,category_id, brand, price, user_id, user_session from oct_2019_avro_m4 ;
+
+create table nov_2019_parq_m4
+stored as parquet
+as
+select product_id,category_id, brand, price, user_id, user_session from nov_2019_avro_m4 ;
+
+
+
+
+
+
+
+WITH customer_brands AS(
+select distinct(category_id) as cat from oct_2019_simple
+union
+select distinct(category_id) as cat from nov_2019_simple)
+select distinct(cat) from customer_brands ;
+
+
+| 2177933350667289121  |
+| 2187686850687140020  |
+| 2187790129827939246  |
+| 2193074740493550411  |
+| 2193074740552270669  |
+| 2193074740619379535  |
+| 2193074740686488401  |
+| 2195085255034011676  |
+| 2195085255117897760  |
+| 2195085255176618020  |
+| 2195085258272014535  |
+| 2195085258339123402  |
++----------------------+
+500 rows selected (22.899 seconds)
+
+
+
+
+
+-----------------------------------------------------------------orc table with partition month and event_type -----------------------------------------
+
+set hive.exec.dynamic.partition=true;
+set hive.exec.dynamic.partition.mode=nonstrict;
+
+
+CREATE DATABASE assignment WITH DBPROPERTIES ('creator' = 'Raunak garg', 'date' = '2020-04-06');
+use assignment;
+
+
+
+CREATE TABLE IF NOT EXISTS assignment.events_stg
+(event_time STRING, event_type STRING, product_id STRING, category_id STRING, category_code STRING, brand 
+STRING, price FLOAT, user_id BIGINT, user_session STRING)
+COMMENT 'Staging Table to load events data'
+PARTITIONED BY(month STRING)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+TBLPROPERTIES ('creator'='Raunak garg', 'date'='2020-04-06', 'skip.header.line.count'='1');
+LOAD DATA INPATH '/user/hadoop/assignment/oct_2019' OVERWRITE INTO TABLE events_stg PARTITION (month='Oct');
+LOAD DATA INPATH '/user/hadoop/assignment/nov_2019' OVERWRITE INTO TABLE events_stg PARTITION (month='Nov');
+
+
+
+CREATE TABLE IF NOT EXISTS assignment.events
+(event_time STRING, product_id STRING, category_id STRING, category_code STRING, brand 
+STRING, price FLOAT, user_id BIGINT, user_session STRING)
+COMMENT 'Optimized final table'
+PARTITIONED BY(month STRING, event_type STRING)
+STORED AS orc
+TBLPROPERTIES ('creator'='Raunak garg', 'date'='2020-04-06', 'orc.compress'= 'SNAPPY');
+INSERT INTO events PARTITION (month, event_type) select event_time, product_id, category_id, 
+category_code, brand, price, user_id, user_session, month, event_type from events_stg;
+
+
+CREATE TABLE IF NOT EXISTS assignment.events_avro2
+(event_time STRING, product_id STRING, category_id STRING, category_code STRING, brand 
+STRING, price FLOAT, user_id BIGINT, user_session STRING)
+COMMENT 'Optimized final table'
+PARTITIONED BY(month STRING, event_type STRING)
+STORED AS avro;
+
+INSERT INTO events_avro2 PARTITION (month, event_type) select event_time, product_id, category_id, 
+category_code, brand, price, user_id, user_session, month, event_type from events_stg;
+
+
+
+1. Find the total revenue generated due to purchases made in October.
+
+select sum(price) from events where event_type='purchase' and month='Oct';
+
+
+
+INFO  : Map 1: 1/1      Reducer 2: 1/1
+INFO  : Completed executing command(queryId=hive_20200406091817_d7df38cd-2259-4e14-a3cd-9e6b7490d47f); Time taken: 7.439 seconds
+INFO  : OK
++---------------------+
+|         _c0         |
++---------------------+
+| 1211538.4295325726  |
++---------------------+
+1 row selected (7.82 seconds)
+
+
+
+2. Write a query to yield the total sum of purchases per month in a single output. 
+
+
+select 'Oct'as Month ,sum(price) as month_sum from events where event_type='purchase' and month='Oct'
+union
+select 'Nov'as Month ,sum(price) as month_sum from events where event_type='purchase' and month='Nov';
+
+
+INFO  : Map 1: 5/5      Map 5: 5/5      Reducer 2: 1/1  Reducer 4: 1/1  Reducer 6: 1/1
+INFO  : Completed executing command(queryId=hive_20200404190546_b139b5e7-f723-4293-8599-66a6b10f6a64); Time taken: 23.172 seconds
+INFO  : OK
++------------+---------------------+
+| _u1.month  |    _u1.month_sum    |
++------------+---------------------+
+| Nov        | 1531016.8991247676  |
+| Oct        | 1211538.4295325726  |
++------------+---------------------+
+2 rows selected (23.388 seconds)
+
+
+3. Write a query to find the change in revenue generated due to purchases from October to November.
+
+
+WITH customer_brands AS(
+select 'Oct'as Month ,sum(price) as month_sum from events where event_type='purchase' and month='Oct'
+union
+select 'Nov'as Month ,sum(price) as month_sum from events where event_type='purchase' and month='Nov')
+SELECT Month, month_sum - LAG(month_sum, 1)  OVER (ORDER BY month_sum )  as diff
+FROM customer_brands;
+
+
+
+INFO  : Completed executing command(queryId=hive_20200404190813_af6de5f7-6aab-4489-9006-2dd4cbe5463a); Time taken: 23.887 seconds
+INFO  : OK
++--------+-------------------+
+| month  |       diff        |
++--------+-------------------+
+| Oct    | NULL              |
+| Nov    | 319478.469592195  |
++--------+-------------------+
+2 rows selected (24.065 seconds)
+
+
+
+4. Find distinct categories of products. 
+
+
+select distinct(category_id) from events ;
+
+
+| 2193074740493550411  |
+| 2193074740552270669  |
+| 2193074740619379535  |
+| 2193074740686488401  |
+| 2195085255034011676  |
+| 2195085255117897760  |
+| 2195085255176618020  |
+| 2195085258272014535  |
+| 2195085258339123402  |
++----------------------+
+500 rows selected (22.899 seconds)
+
+
+5. Find the total number of products available under each category. 
+
+
+
+select count(distinct(product_id)) as Product_count , category_id from events group by category_id ;
+
+
+| 2              | 2187686850687140020  |
+| 15             | 2187790129827939246  |
+| 4              | 2193074740493550411  |
+| 23             | 2193074740552270669  |
+| 6              | 2193074740619379535  |
+| 4              | 2193074740686488401  |
+| 66             | 2195085255034011676  |
+| 13             | 2195085255117897760  |
+| 56             | 2195085255176618020  |
+| 6              | 2195085258272014535  |
+| 1              | 2195085258339123402  |
++----------------+----------------------+
+500 rows selected (27.372 seconds)
+
+
+
+6. Which brand had the maximum sales in October and November combined?
+
+
+select sum(price) as sales_sum , brand from events WHERE brand <> '' and event_type='purchase'  group by brand order by sales_sum  desc limit 1;
+
+
+
+INFO  : Map 1: 5/5      Map 5: 5/5      Reducer 3: 1/1  Reducer 4: 1/1
+INFO  : Completed executing command(queryId=hive_20200401101159_2a89a66f-0bcd-4e45-8ee5-96bcc7c769e6); Time taken: 27.727 seconds
+INFO  : OK
++--------------------+---------+
+|     sales_sum      |  brand  |
++--------------------+---------+
+| 6351.000008251518  | runail  |
++--------------------+---------+
+1 row selected (27.919 seconds)
+
+
+7. Which brands increased their sales from October to November?
+
+
+
+with cte as (select brand, month, sum(price) as sales from events where event_type='purchase' group by brand, month order by brand,month) select a.*,b.* from  cte a inner join cte b on a.brand=b.brand and a.month!=b.month where a.sales>b.sales ;
+
+
+INFO  : Map 1: 1/1      Map 5: 1/1      Reducer 2: 2/2  Reducer 3: 1/1  Reducer 4: 2/2  Reducer 6: 2/2  Reducer 7: 1/1
+INFO  : Completed executing command(queryId=hive_20200406095134_7603a31a-5237-428e-bc3a-7c01fad87c67); Time taken: 18.626 seconds
+INFO  : OK
++-------------+----------+---------------------+-------------+----------+---------------------+
+|   a.brand   | a.month  |       a.sales       |   b.brand   | b.month  |       b.sales       |
++-------------+----------+---------------------+-------------+----------+---------------------+
+| almea       | Oct      | 988.5399951934814   | almea       | Nov      | 973.869996547699    |
+| ardell      | Oct      | 1255.739996433258   | ardell      | Nov      | 843.649998664856    |
+| art-visage  | Nov      | 2997.8000057935715  | art-visage  | Oct      | 2092.7100064754486  |
+| artex       | Nov      | 4327.249953508377   | artex       | Oct      | 2730.6399517059326  |
+| batiste     | Nov      | 874.1700088977814   | batiste     | Oct      | 772.400013923645    |
++-------------+----------+---------------------+-------------+----------+---------------------+
+5 rows selected (19.067 seconds)
+
+
+  almea   
+| ardell    
+| art-visage 
+| artex  
+| batiste      
+
+
+
+8. Your company wants to reward the top 10 users of its website with a Golden Customer plan. Write a query to generate a list of top 10 users who spend the most.
+
+
+
+select count(price) as user_spend , user_id from events where event_type='purchase' group by user_id order by user_spend desc limit 10;
+
+
+
+
+INFO  : Map 1: 1/1      Reducer 2: 1(+1)/2      Reducer 3: 0/1
+INFO  : Map 1: 1/1      Reducer 2: 2/2  Reducer 3: 0(+1)/1
+INFO  : Map 1: 1/1      Reducer 2: 2/2  Reducer 3: 1/1
+INFO  : Completed executing command(queryId=hive_20200406095526_ad42d3a6-03dd-4c57-b002-cef94fa57844); Time taken: 10.131 seconds
+INFO  : OK
++-------------+------------+
+| user_spend  |  user_id   |
++-------------+------------+
+| 438         | 557790271  |
+| 329         | 546827800  |
+| 256         | 549507462  |
+| 236         | 566576008  |
+| 230         | 473313149  |
+| 217         | 480463194  |
+| 214         | 514908450  |
+| 208         | 549368055  |
+| 207         | 538022131  |
+| 197         | 431950134  |
++-------------+------------+
+10 rows selected (10.422 seconds)
+
+
+
+select count(price) as user_spend , user_id from events_parq where event_type='purchase' group by user_id order by user_spend desc limit 10;
+
+
+
+
+
+
+
+select 'Oct'as Month ,sum(price) as month_sum from events_parq where event_type='purchase' and month='Oct'
+union
+select 'Nov'as Month ,sum(price) as month_sum from events_parq where event_type='purchase' and month='Nov';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
